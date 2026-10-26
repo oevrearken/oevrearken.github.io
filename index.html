@@ -59,6 +59,31 @@
     function load() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
     function save(t) { try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch (e) {} }
 
+    // ---------- app name (set in the app under Avancerede indstillinger) ----------
+    var NAME_KEY = 'kitchen_app_name';
+    var appName = 'Køkken';
+    function applyName(name, remember) {
+      name = String(name || '').trim().slice(0, 30);
+      if (!name) return;
+      appName = name;
+      if (remember) { try { localStorage.setItem(NAME_KEY, name); } catch (e) {} }
+      document.title = name;
+      document.querySelector('meta[name="apple-mobile-web-app-title"]').setAttribute('content', name);
+      document.getElementById('app').title = name;
+      // Android reads the name from the manifest: point it at a generated one with the new name.
+      var base = location.href.replace(/[#?].*$/, '').replace(/[^\/]*$/, '');
+      var manifest = {
+        name: name, short_name: name, lang: 'da', start_url: base, scope: base, display: 'standalone',
+        background_color: '#f6f6f3', theme_color: '#0b8043',
+        icons: [192, 512].map(function (n) {
+          return { src: base + 'icon-' + n + '.png', sizes: n + 'x' + n, type: 'image/png', purpose: 'any maskable' };
+        })
+      };
+      document.querySelector('link[rel="manifest"]').href =
+        'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifest));
+    }
+    try { applyName(localStorage.getItem(NAME_KEY), false); } catch (e) {}
+
     var token = load();
     document.getElementById('app').src = APP_URL + '?launcher=1' + (token ? '#k=' + token : '');
 
@@ -68,6 +93,7 @@
       if (!d) return;
       if (d.type === 'koekken-token') save(typeof d.token === 'string' && /^[0-9a-f]{64}$/.test(d.token) ? d.token : null);
       if (d.type === 'koekken-paste') showPasteButton(d, e.source, e.origin);
+      if (d.type === 'koekken-name') applyName(d.name, true);
       if (d.type === 'koekken-push') handlePush(d, function (reply) {
         reply.type = 'koekken-push-status';
         reply.id = d.id;
@@ -154,7 +180,7 @@
       var sheet = document.createElement('div');
       sheet.className = 'sheet';
       var h = document.createElement('h2'); h.textContent = 'Slå påmindelser til?';
-      var p = document.createElement('p'); p.textContent = 'Køkken sender fx en påmindelse om madklub-tilmelding, hvis du ikke har tilmeldt dig endnu.';
+      var p = document.createElement('p'); p.textContent = appName + ' sender fx en påmindelse om madklub-tilmelding, hvis du ikke har tilmeldt dig endnu.';
       var yes = document.createElement('button'); yes.className = 'yes'; yes.textContent = 'Tillad';
       var no = document.createElement('button'); no.className = 'no'; no.textContent = 'Ikke nu';
       sheet.append(h, p, yes, no); bg.appendChild(sheet); document.body.appendChild(bg);
