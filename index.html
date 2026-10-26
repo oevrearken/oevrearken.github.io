@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Køkken</title>
+  <!-- Home-screen app: icon, name and full-screen mode (what Apps Script can't set itself) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Køkken">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#0b8043">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="manifest" href="manifest.json">
+  <style>
+    :root { --bg: #f6f6f3; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #141413; } }
+    html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+    iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+  </style>
+</head>
+<body>
+  <iframe id="app" title="Køkken" allow="clipboard-write"></iframe>
+  <script>
+    /*
+     * Launcher for the Køkken app (Google Apps Script).
+     * It shows the app full-screen and keeps the login token in THIS site's storage, which
+     * Safari doesn't clear (unlike storage inside Google's frame). The app sends the token
+     * here with postMessage after login/logout; on start we hand it to the app in the URL hash.
+     * See README.md → "Launcher".
+     */
+    var APP_URL = 'https://script.google.com/macros/s/AKfycbw9KSo4tn_JtoyBpBGlz8b8NnUTCO24bFFQubAmB3DPLTZmQeA-W4WSWOX-LTn8H9_R/exec';
+    var KEY = 'kitchen_token';
+    // Apps Script serves the app's code from https://n-<hash>-script.googleusercontent.com
+    var APP_ORIGIN = /^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/;
+
+    function load() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+    function save(t) { try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch (e) {} }
+
+    var token = load();
+    document.getElementById('app').src = APP_URL + '?launcher=1' + (token ? '#k=' + token : '');
+
+    window.addEventListener('message', function (e) {
+      if (!APP_ORIGIN.test(e.origin)) return;
+      var d = e.data;
+      if (!d || d.type !== 'koekken-token') return;
+      save(typeof d.token === 'string' && /^[0-9a-f]{64}$/.test(d.token) ? d.token : null);
+    });
+  </script>
+</body>
+</html>
