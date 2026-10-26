@@ -31,10 +31,13 @@
     .sheet .yes { background: #0b8043; color: #fff; }
     .sheet .no { background: transparent; color: inherit; border: 1px solid rgba(128,128,128,.4); }
     /* Floating paste button for the Opskrifter tab (only this page may read the clipboard) */
-    .paste-btn { position: fixed; z-index: 5; right: 16px; bottom: calc(64px + 16px + env(safe-area-inset-bottom));
-      min-height: 48px; padding: 0 20px; border: 0; border-radius: 24px; background: #0b8043; color: #fff;
+    /* Drawn exactly over the app's #paste-slot (see showPasteButton), looking like the app's buttons */
+    .paste-btn { position: fixed; z-index: 5; box-sizing: border-box; min-height: 48px; padding: 0 16px; border-radius: 12px;
+      border: 1px solid #e2e2dc; background: #fff; color: #1d1d1b;
       font: 600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      box-shadow: 0 4px 16px rgba(0,0,0,.25); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+    @media (prefers-color-scheme: dark) { .paste-btn { background: #1f1f1d; color: #ecece8; border-color: #33332f; } }
+    .paste-btn:active { filter: brightness(.85); }
     .paste-btn svg { width: 20px; height: 20px; }
   </style>
 </head>
@@ -64,7 +67,7 @@
       var d = e.data;
       if (!d) return;
       if (d.type === 'koekken-token') save(typeof d.token === 'string' && /^[0-9a-f]{64}$/.test(d.token) ? d.token : null);
-      if (d.type === 'koekken-paste') showPasteButton(d.action === 'show', d.label, e.source, e.origin);
+      if (d.type === 'koekken-paste') showPasteButton(d, e.source, e.origin);
       if (d.type === 'koekken-push') handlePush(d, function (reply) {
         reply.type = 'koekken-push-status';
         reply.id = d.id;
@@ -74,15 +77,29 @@
 
     // ---------- paste button (the app's frame may not read the clipboard; this page may) ----------
     var pasteBtn = null;
-    function showPasteButton(show, label, source, origin) {
-      if (!show) { if (pasteBtn) pasteBtn.remove(); pasteBtn = null; return; }
-      if (pasteBtn) return;
-      pasteBtn = document.createElement('button');
+    /**
+     * d.rect is the slot's position inside the app's frame, d.frame that frame's size. Google's
+     * frame fills the launcher below Google's banner, so the offset is our size minus the frame's.
+     */
+    function showPasteButton(d, source, origin) {
+      if (d.action !== 'show') { if (pasteBtn) pasteBtn.remove(); pasteBtn = null; return; }
+      if (!pasteBtn) pasteBtn = createPasteButton(d.label, source, origin);
+      var top = d.rect.top + (window.innerHeight - d.frame.height);
+      var left = d.rect.left + (window.innerWidth - d.frame.width);
+      var visible = d.rect.top >= 0 && d.rect.top + d.rect.height <= d.frame.height - 64; // not under the tab bar
+      pasteBtn.style.top = top + 'px';
+      pasteBtn.style.left = left + 'px';
+      pasteBtn.style.width = d.rect.width + 'px';
+      pasteBtn.style.height = d.rect.height + 'px';
+      pasteBtn.style.visibility = visible ? 'visible' : 'hidden';
+    }
+    function createPasteButton(label, source, origin) {
+      var pasteBtn = document.createElement('button');
       pasteBtn.className = 'paste-btn';
       pasteBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
         'stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"/>' +
         '<path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg>';
-      pasteBtn.appendChild(document.createTextNode(String(label || 'Indsæt')));
+      pasteBtn.appendChild(document.createTextNode(String(label || 'Indsæt').replace(/^📋\s*/, '')));
       pasteBtn.onclick = function () {
         var send = function (msg) { msg.type = 'koekken-paste-result'; source.postMessage(msg, origin); };
         if (!navigator.clipboard || !navigator.clipboard.readText) return send({ error: 'unsupported' });
@@ -90,6 +107,7 @@
           function (err) { send({ error: String(err) }); });
       };
       document.body.appendChild(pasteBtn);
+      return pasteBtn;
     }
 
     // ---------- push notifications (see sw.js and the app's Push.gs) ----------
