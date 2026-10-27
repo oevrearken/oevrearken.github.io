@@ -84,8 +84,13 @@
     }
     try { applyName(localStorage.getItem(NAME_KEY), false); } catch (e) {}
 
-    var token = load();
-    document.getElementById('app').src = APP_URL + '?launcher=1' + (token ? '#k=' + token : '');
+    // A fresh address every time (&r=…), so no cache on the way can hand out an older version of
+    // the app; the app asks for a reload ('koekken-reload') when it sees it's out of date.
+    function loadApp() {
+      var token = load();
+      document.getElementById('app').src = APP_URL + '?launcher=1&r=' + Date.now() + (token ? '#k=' + token : '');
+    }
+    loadApp();
 
     window.addEventListener('message', function (e) {
       if (!APP_ORIGIN.test(e.origin)) return;
@@ -94,6 +99,7 @@
       if (d.type === 'koekken-token') save(typeof d.token === 'string' && /^[0-9a-f]{64}$/.test(d.token) ? d.token : null);
       if (d.type === 'koekken-paste') showPasteButton(d, e.source, e.origin);
       if (d.type === 'koekken-name') applyName(d.name, true);
+      if (d.type === 'koekken-reload') loadApp();
       if (d.type === 'koekken-push') handlePush(d, function (reply) {
         reply.type = 'koekken-push-status';
         reply.id = d.id;
