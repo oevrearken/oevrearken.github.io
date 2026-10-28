@@ -48,9 +48,8 @@
       display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
     @media (prefers-color-scheme: dark) { .paste-btn { background: #1f1f1d; color: #ecece8; border-color: #33332f; } }
     .paste-btn:active { filter: brightness(.85); }
-    .paste-btn { animation: paste-in .18s ease-out; } /* like the app's own fade-in on a tab change */
-    @keyframes paste-in { from { opacity: 0; } to { opacity: 1; } }
-    @media (prefers-reduced-motion: reduce) { .paste-btn { animation: none; } }
+    /* On the app's tab change: fade and slide in exactly like the app's page (see d.enter) */
+    @keyframes paste-in { from { opacity: 0; transform: translateY(var(--shift, 6px)); } to { opacity: 1; transform: none; } }
     .paste-btn svg { width: 20px; height: 20px; }
   </style>
 </head>
@@ -193,6 +192,12 @@
       pasteBtn.style.width = d.rect.width + 'px';
       pasteBtn.style.height = d.rect.height + 'px';
       pasteBtn.style.visibility = visible ? 'visible' : 'hidden';
+      if (d.enter && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+        pasteBtn.style.setProperty('--shift', (Number(d.enter.shift) || 0) + 'px');
+        pasteBtn.style.animation = 'none';
+        void pasteBtn.offsetWidth; // restart the animation
+        pasteBtn.style.animation = 'paste-in ' + (Number(d.enter.ms) || 180) + 'ms ease-out';
+      }
     }
     function createPasteButton(label, source, origin) {
       var pasteBtn = document.createElement('button');
