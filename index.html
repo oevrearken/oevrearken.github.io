@@ -14,8 +14,18 @@
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="manifest" href="manifest.json">
   <style>
-    :root { --bg: #f6f6f3; }
-    @media (prefers-color-scheme: dark) { :root { --bg: #141413; } }
+    :root { --bg: #f6f6f3; --muted: #6b6b66; }
+    /* Dark by the phone's setting, unless the app said light (Mig → Udseende), or when it said dark */
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #141413; --muted: #a2a29b; } }
+    :root[data-theme="dark"] { --bg: #141413; --muted: #a2a29b; }
+    /* Start screen while Google loads the app (a few seconds); the app says when it's drawn */
+    .splash { position: fixed; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 12px; background: var(--bg); color: var(--muted);
+      font: 600 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; transition: opacity .3s ease; }
+    .splash.gone { opacity: 0; pointer-events: none; }
+    .splash-icon { font-size: 56px; animation: breathe 1.8s ease-in-out infinite; }
+    @keyframes breathe { 0%, 100% { transform: scale(1); opacity: .85; } 50% { transform: scale(1.08); opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .splash-icon { animation: none; } .splash { transition: none; } }
     html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
     iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
     /* Permission sheet: iPhone only allows asking for notifications from this page, after a tap */
@@ -43,6 +53,7 @@
 </head>
 <body>
   <iframe id="app" title="Køkken" allow="clipboard-read; clipboard-write"></iframe>
+  <div class="splash" id="splash" role="status"><div class="splash-icon" aria-hidden="true">🍳</div><div id="splash-name">Køkken</div></div>
   <script>
     /*
      * Launcher for the Køkken app (Google Apps Script).
@@ -71,6 +82,7 @@
       document.title = name;
       document.querySelector('meta[name="apple-mobile-web-app-title"]').setAttribute('content', name);
       document.getElementById('app').title = name;
+      document.getElementById('splash-name').textContent = name;
       // Android reads the name from the manifest: point it at a generated one with the new name.
       var base = location.href.replace(/[#?].*$/, '').replace(/[^\/]*$/, '');
       var manifest = {
@@ -87,7 +99,23 @@
 
     // A fresh address every time (&r=…), so no cache on the way can hand out an older version of
     // the app; the app asks for a reload ('koekken-reload') when it sees it's out of date.
+    // ---------- start screen + appearance ----------
+    var THEME_KEY = 'kitchen_theme';
+    function applyTheme(t) {
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      else document.documentElement.removeAttribute('data-theme');
+    }
+    try { applyTheme(localStorage.getItem(THEME_KEY)); } catch (e) {}
+    var splashTimer = null;
+    function showSplash() {
+      document.getElementById('splash').classList.remove('gone');
+      clearTimeout(splashTimer);
+      splashTimer = setTimeout(hideSplash, 20000); // never hide the app for good, whatever happens
+    }
+    function hideSplash() { clearTimeout(splashTimer); document.getElementById('splash').classList.add('gone'); }
+
     function loadApp() {
+      showSplash();
       var token = load();
       document.getElementById('app').src = APP_URL + '?launcher=1&r=' + Date.now() + (token ? '#k=' + token : '');
     }
@@ -101,6 +129,12 @@
       if (d.type === 'koekken-paste') showPasteButton(d, e.source, e.origin);
       if (d.type === 'koekken-name') applyName(d.name, true);
       if (d.type === 'koekken-reload') loadApp();
+      if (d.type === 'koekken-ready') hideSplash();
+      if (d.type === 'koekken-theme') {
+        var t = d.theme === 'light' || d.theme === 'dark' ? d.theme : '';
+        try { t ? localStorage.setItem(THEME_KEY, t) : localStorage.removeItem(THEME_KEY); } catch (err) {}
+        applyTheme(t);
+      }
       // The app's last known content, kept here (the app's own storage may be cleared by the phone)
       // and handed back when it starts, so it can show the calendar at once.
       if (d.type === 'koekken-snapshot-save') {
