@@ -124,6 +124,24 @@
     }
     loadApp();
 
+    // ---------- rotation ----------
+    // After a rotation, iPhone can leave this page slightly scrolled or with old sizes, so taps land
+    // beside what's drawn. Pin it back: no scroll, and the app frame exactly the screen's size.
+    function fit() {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      var f = document.getElementById('app');
+      f.style.width = window.innerWidth + 'px';
+      f.style.height = window.innerHeight + 'px';
+    }
+    function fitSoon() { fit(); [100, 350, 800].forEach(function (ms) { setTimeout(fit, ms); }); }
+    window.addEventListener('resize', fitSoon);
+    window.addEventListener('orientationchange', fitSoon);
+    window.addEventListener('scroll', function () { if (window.scrollY || window.scrollX) window.scrollTo(0, 0); });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', fitSoon);
+    fit();
+
     window.addEventListener('message', function (e) {
       if (!APP_ORIGIN.test(e.origin)) return;
       var d = e.data;
