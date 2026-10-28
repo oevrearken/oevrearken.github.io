@@ -5,6 +5,13 @@
 self.addEventListener('install', function () { self.skipWaiting(); });
 self.addEventListener('activate', function (e) { e.waitUntil(self.clients.claim()); });
 
+// The launcher page itself: always the newest from GitHub Pages (it says "keep for 10 minutes",
+// which would delay launcher updates); the phone's copy only when offline.
+self.addEventListener('fetch', function (e) {
+  if (e.request.mode !== 'navigate' || new URL(e.request.url).origin !== self.location.origin) return;
+  e.respondWith(fetch(e.request, { cache: 'no-store' }).catch(function () { return fetch(e.request); }));
+});
+
 self.addEventListener('push', function (e) {
   var msg = { title: 'Køkken', body: 'Du har en ny påmindelse.' };
   try { if (e.data) msg = e.data.json(); } catch (err) {}
