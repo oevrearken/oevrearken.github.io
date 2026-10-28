@@ -53,6 +53,7 @@
      */
     var APP_URL = 'https://script.google.com/macros/s/AKfycbw9KSo4tn_JtoyBpBGlz8b8NnUTCO24bFFQubAmB3DPLTZmQeA-W4WSWOX-LTn8H9_R/exec';
     var KEY = 'kitchen_token';
+    var SNAP_KEY = 'kitchen_snapshot';
     // Apps Script serves the app's code from https://n-<hash>-script.googleusercontent.com
     var APP_ORIGIN = /^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/;
 
@@ -100,6 +101,16 @@
       if (d.type === 'koekken-paste') showPasteButton(d, e.source, e.origin);
       if (d.type === 'koekken-name') applyName(d.name, true);
       if (d.type === 'koekken-reload') loadApp();
+      // The app's last known content, kept here (the app's own storage may be cleared by the phone)
+      // and handed back when it starts, so it can show the calendar at once.
+      if (d.type === 'koekken-snapshot-save') {
+        try { d.snap ? localStorage.setItem(SNAP_KEY, String(d.snap)) : localStorage.removeItem(SNAP_KEY); } catch (err) {}
+      }
+      if (d.type === 'koekken-snapshot-get') {
+        var snap = null;
+        try { snap = localStorage.getItem(SNAP_KEY); } catch (err) {}
+        e.source.postMessage({ type: 'koekken-snapshot', snap: snap }, e.origin);
+      }
       if (d.type === 'koekken-push') handlePush(d, function (reply) {
         reply.type = 'koekken-push-status';
         reply.id = d.id;
