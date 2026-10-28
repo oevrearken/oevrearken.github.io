@@ -117,7 +117,10 @@
     function loadApp() {
       showSplash();
       var token = load();
-      document.getElementById('app').src = APP_URL + '?launcher=1&r=' + Date.now() + (token ? '#k=' + token : '');
+      var theme = '';
+      try { theme = localStorage.getItem(THEME_KEY) || 'auto'; } catch (e) {}
+      document.getElementById('app').src = APP_URL + '?launcher=1&r=' + Date.now() + (theme ? '&theme=' + theme : '') +
+        (token ? '#k=' + token : '');
     }
     loadApp();
 
