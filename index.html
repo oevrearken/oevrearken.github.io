@@ -99,20 +99,6 @@
 
     // A fresh address every time (&r=…), so no cache on the way can hand out an older version of
     // the app; the app asks for a reload ('koekken-reload') when it sees it's out of date.
-    // ---------- open a map app (iPhone: only this page may open an app's own address) ----------
-    var APP_SCHEMES = /^(comgooglemaps|waze):\/\//;
-    function openApp(url, fallback) {
-      url = String(url || ''); fallback = String(fallback || '');
-      if (!APP_SCHEMES.test(url) || !/^https:\/\//.test(fallback)) return;
-      // If the app opens, this page goes to the background; if not, the web version after a moment.
-      var timer = setTimeout(function () { window.open(fallback, '_blank'); }, 1500);
-      var hidden = function () {
-        if (document.visibilityState === 'hidden') { clearTimeout(timer); document.removeEventListener('visibilitychange', hidden); }
-      };
-      document.addEventListener('visibilitychange', hidden);
-      location.href = url;
-    }
-
     // ---------- start screen + appearance ----------
     var THEME_KEY = 'kitchen_theme';
     function applyTheme(t) {
@@ -147,7 +133,6 @@
       if (d.type === 'koekken-name') applyName(d.name, true);
       if (d.type === 'koekken-reload') loadApp();
       if (d.type === 'koekken-ready') hideSplash();
-      if (d.type === 'koekken-open-app') openApp(d.url, d.fallback);
       if (d.type === 'koekken-theme') {
         var t = d.theme === 'light' || d.theme === 'dark' ? d.theme : '';
         try { t ? localStorage.setItem(THEME_KEY, t) : localStorage.removeItem(THEME_KEY); } catch (err) {}
