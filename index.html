@@ -48,6 +48,9 @@
       display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
     @media (prefers-color-scheme: dark) { .paste-btn { background: #1f1f1d; color: #ecece8; border-color: #33332f; } }
     .paste-btn:active { filter: brightness(.85); }
+    .paste-btn { animation: paste-in .18s ease-out; } /* like the app's own fade-in on a tab change */
+    @keyframes paste-in { from { opacity: 0; } to { opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .paste-btn { animation: none; } }
     .paste-btn svg { width: 20px; height: 20px; }
   </style>
 </head>
