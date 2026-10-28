@@ -121,8 +121,15 @@
       var token = load();
       var theme = '';
       try { theme = localStorage.getItem(THEME_KEY) || 'auto'; } catch (e) {}
-      document.getElementById('app').src = APP_URL + '?launcher=1&r=' + Date.now() + (theme ? '&theme=' + theme : '') +
-        (token ? '#k=' + token : '');
+      var url = APP_URL + '?launcher=1&r=' + Date.now() + (theme ? '&theme=' + theme : '') + (token ? '#k=' + token : '');
+      var frame = document.getElementById('app');
+      // A reload ("Opdatér nu") replaces the app in the frame's history instead of adding to it:
+      // with .src, every reload left an entry, and the phone's back swipe went back to the
+      // previous copy of the app (start screen, then an old screen) instead of doing nothing.
+      if (frame.getAttribute('src')) {
+        try { frame.contentWindow.location.replace(url); return; } catch (e) {}
+      }
+      frame.src = url;
     }
     loadApp();
 
