@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-title" content="Køkken">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="theme-color" content="#0b8043">
-  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="apple-touch-icon" href="icons/house-green-180.png">
   <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
   <link rel="manifest" href="manifest.json">
   <style>
@@ -83,7 +83,7 @@
     var ICONS = ['pan', 'pasta', 'pot', 'house'].reduce(function (all, m) {
       return all.concat(['green', 'blue', 'orange', 'purple'].map(function (c) { return m + '-' + c; }));
     }, []);
-    var appName = 'Køkken', appIcon = 'pan-green';
+    var appName = 'Køkken', appIcon = 'house-green'; // until the app says otherwise (the kitchen's default)
     var base = location.href.replace(/[#?].*$/, '').replace(/[^\/]*$/, '');
     function iconFile(n) { return appIcon === 'pan-green' ? (n === 180 ? 'apple-touch-icon.png' : 'icon-' + n + '.png') : 'icons/' + appIcon + '-' + n + '.png'; }
     function applyName(name, remember) {

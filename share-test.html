@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Del-test</title>
+  <style>
+    body { font: 17px/1.45 -apple-system, BlinkMacSystemFont, sans-serif; margin: 24px; color: #1d1d1b; background: #f6f6f3; }
+    button { display: block; width: 100%; min-height: 52px; margin: 16px 0; border: 0; border-radius: 12px;
+      background: #0b8043; color: #fff; font: 600 17px -apple-system, sans-serif; }
+    p.result { color: #6b6b66; }
+  </style>
+</head>
+<body>
+  <!-- A one-off test (2026-10-29): does the share sheet a page opens itself offer "Føj til hjemmeskærm"? -->
+  <h1>Del-test</h1>
+  <p>Tryk på knappen. Kig så efter <b>"Føj til hjemmeskærm"</b> i menuen, der kommer frem (rul evt. ned). Du behøver ikke vælge noget.</p>
+  <button id="share">Åbn del-menuen</button>
+  <p class="result" id="result"></p>
+  <script>
+    document.getElementById('share').onclick = function () {
+      var out = document.getElementById('result');
+      if (!navigator.share) { out.textContent = 'Denne browser kan ikke åbne del-menuen fra en side.'; return; }
+      navigator.share({ title: 'Køkken', url: 'https://oevrearken.github.io/' })
+        .then(function () { out.textContent = 'Menuen blev åbnet og noget blev valgt.'; },
+              function (e) { out.textContent = 'Menuen blev lukket (' + e.name + ').'; });
+    };
+  </script>
+</body>
+</html>
