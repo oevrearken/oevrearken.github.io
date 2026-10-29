@@ -73,9 +73,19 @@
     function load() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
     function save(t) { try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch (e) {} }
 
-    // ---------- app name (set in the app under Avancerede indstillinger) ----------
+    // ---------- app name and home-screen icon (set in the app) ----------
+    // The phone copies both when the app is added to the home screen: the name and icon from the
+    // tags below on iPhone, from the manifest on Android. Changing them later doesn't change an
+    // app already on the home screen.
     var NAME_KEY = 'kitchen_app_name';
-    var appName = 'Køkken';
+    var ICON_KEY = 'kitchen_icon';
+    // motif-colour (the app's Settings.gs APP_ICONS); 'pan-green' is the original icon-*.png
+    var ICONS = ['pan', 'pasta', 'pot', 'house'].reduce(function (all, m) {
+      return all.concat(['green', 'blue', 'orange', 'purple'].map(function (c) { return m + '-' + c; }));
+    }, []);
+    var appName = 'Køkken', appIcon = 'pan-green';
+    var base = location.href.replace(/[#?].*$/, '').replace(/[^\/]*$/, '');
+    function iconFile(n) { return appIcon === 'pan-green' ? (n === 180 ? 'apple-touch-icon.png' : 'icon-' + n + '.png') : 'icons/' + appIcon + '-' + n + '.png'; }
     function applyName(name, remember) {
       name = String(name || '').trim().slice(0, 30);
       if (!name) return;
@@ -85,18 +95,28 @@
       document.querySelector('meta[name="apple-mobile-web-app-title"]').setAttribute('content', name);
       document.getElementById('app').title = name;
       document.getElementById('splash-name').textContent = name;
-      // Android reads the name from the manifest: point it at a generated one with the new name.
-      var base = location.href.replace(/[#?].*$/, '').replace(/[^\/]*$/, '');
+      updateManifest();
+    }
+    function applyIcon(icon, remember) {
+      if (ICONS.indexOf(icon) < 0) return;
+      appIcon = icon;
+      if (remember) { try { localStorage.setItem(ICON_KEY, icon); } catch (e) {} }
+      document.querySelector('link[rel="apple-touch-icon"]').href = iconFile(180);
+      updateManifest();
+    }
+    // Android reads the name and icon from the manifest: point it at a generated one.
+    function updateManifest() {
       var manifest = {
-        name: name, short_name: name, lang: 'da', start_url: base, scope: base, display: 'standalone',
+        name: appName, short_name: appName, lang: 'da', start_url: base, scope: base, display: 'standalone',
         background_color: '#f6f6f3', theme_color: '#0b8043',
         icons: [192, 512].map(function (n) {
-          return { src: base + 'icon-' + n + '.png', sizes: n + 'x' + n, type: 'image/png', purpose: 'any maskable' };
+          return { src: base + iconFile(n), sizes: n + 'x' + n, type: 'image/png', purpose: 'any maskable' };
         })
       };
       document.querySelector('link[rel="manifest"]').href =
         'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifest));
     }
+    try { applyIcon(localStorage.getItem(ICON_KEY), false); } catch (e) {}
     try { applyName(localStorage.getItem(NAME_KEY), false); } catch (e) {}
 
     // A fresh address every time (&r=…), so no cache on the way can hand out an older version of
@@ -157,7 +177,10 @@
       if (!d) return;
       if (d.type === 'koekken-token') save(typeof d.token === 'string' && /^[0-9a-f]{64}$/.test(d.token) ? d.token : null);
       if (d.type === 'koekken-paste') showPasteButton(d, e.source, e.origin);
-      if (d.type === 'koekken-name') applyName(d.name, true);
+      if (d.type === 'koekken-name') {
+        if (d.icon) applyIcon(d.icon, true); // the person's own icon, else the kitchen's
+        applyName(d.name, true);
+      }
       if (d.type === 'koekken-reload') loadApp();
       if (d.type === 'koekken-ready') hideSplash();
       if (d.type === 'koekken-theme') {
