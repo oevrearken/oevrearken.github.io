@@ -43,6 +43,11 @@
     .sheet .yes { background: #0b8043; color: #fff; }
     .sheet .no { background: transparent; color: inherit; border: 1px solid rgba(128,128,128,.4); }
     .sheet .hint { font-size: 14px; margin: 12px 0 4px; }
+    /* Points at the in-app browser's menu (⋯ / ⋮), just above the top right corner of the page */
+    .menu-arrow { position: fixed; top: 6px; right: 10px; width: 110px; height: 150px; color: #fff; pointer-events: none;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,.35)); animation: nudge 1.2s ease-in-out infinite; }
+    @keyframes nudge { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(5px, -8px); } }
+    @media (prefers-reduced-motion: reduce) { .menu-arrow { animation: none; } }
     /* Floating paste button for the Opskrifter tab (only this page may read the clipboard) */
     /* Drawn exactly over the app's #paste-slot (see showPasteButton), looking like the app's buttons */
     .paste-btn { position: fixed; z-index: 5; box-sizing: border-box; min-height: 48px; padding: 0 16px; border-radius: 12px;
@@ -237,22 +242,34 @@
       bg.className = 'sheet-bg';
       var sheet = document.createElement('div');
       sheet.className = 'sheet';
-      var h = document.createElement('h2'); h.textContent = 'Åbn i ' + (ios ? 'Safari' : 'din browser');
+      // Danish, or English for a phone in another language (the menu item is named as the phone shows it)
+      var T = /^da\b/i.test(navigator.language || '') ? {
+        title: 'Åbn i ' + (ios ? 'Safari' : 'din browser'), item: 'Åbn i ekstern browser',
+        tap: 'Tryk på {menu} øverst til højre, og vælg "{item}".', why: 'Så forbliver du logget ind og kan lægge appen på hjemmeskærmen.',
+        open: 'Åbn i browseren', copy: 'Kopiér linket', copied: 'Kopieret ✓', stay: 'Fortsæt her alligevel'
+      } : {
+        title: 'Open in ' + (ios ? 'Safari' : 'your browser'), item: 'Open in external browser',
+        tap: 'Tap {menu} in the top right corner, and choose "{item}".', why: 'Then you stay logged in and can add the app to your home screen.',
+        open: 'Open in browser', copy: 'Copy the link', copied: 'Copied ✓', stay: 'Continue here anyway'
+      };
+      var h = document.createElement('h2'); h.textContent = T.title;
       var p = document.createElement('p');
-      p.textContent = 'Du har åbnet linket inde i en anden app (fx Messenger). Åbn det i ' + (ios ? 'Safari' : 'telefonens browser') +
-        ', så du bliver ved med at være logget ind og kan lægge appen på hjemmeskærmen.';
+      p.textContent = T.tap.replace('{menu}', ios ? '⋯' : '⋮').replace('{item}', T.item);
+      var why = document.createElement('p'); why.className = 'hint';
+      why.textContent = T.why;
       var open = null;
-      if (android) {
-        open = document.createElement('button'); open.className = 'yes'; open.textContent = 'Åbn i browseren';
+      if (android) { // intent:// opens the default browser (Messenger on iPhone blocks its x-safari-https://)
+        open = document.createElement('button'); open.className = 'yes'; open.textContent = T.open;
         open.onclick = function () { location.href = 'intent://' + rest + '#Intent;scheme=https;action=android.intent.action.VIEW;end'; };
       }
-      var hint = document.createElement('p'); if (android) hint.className = 'hint'; // on iPhone it's the main way
-      hint.textContent = ios
-        ? 'Tryk på menuen (⋯) i hjørnet og vælg at åbne i Safari eller ekstern browser. Eller kopiér linket herunder og sæt det ind i Safari.'
-        : 'Sker der ikke noget? Tryk på menuen (⋮) i hjørnet og vælg at åbne i browseren – eller kopiér linket og sæt det ind i din browser.';
-      var copy = document.createElement('button'); copy.className = ios ? 'yes' : 'no'; copy.textContent = 'Kopiér linket';
+      // A curved arrow from the sheet up to the corner
+      var arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      arrow.setAttribute('class', 'menu-arrow'); arrow.setAttribute('viewBox', '0 0 110 150'); arrow.setAttribute('aria-hidden', 'true');
+      arrow.innerHTML = '<path d="M30 145 C 30 80, 60 40, 95 12" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>' +
+        '<path d="M70 10 L 97 10 L 92 37" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>';
+      var copy = document.createElement('button'); copy.className = 'no'; copy.textContent = T.copy;
       copy.onclick = function () {
-        var done = function () { copy.textContent = 'Kopieret ✓'; };
+        var done = function () { copy.textContent = T.copied; };
         var fallback = function () {
           var input = document.createElement('input');
           input.value = plain; input.readOnly = true; input.style.cssText = 'position:fixed;opacity:0';
@@ -263,12 +280,12 @@
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(plain).then(done, fallback);
         else fallback();
       };
-      var stay = document.createElement('button'); stay.className = 'no'; stay.textContent = 'Fortsæt her alligevel';
+      var stay = document.createElement('button'); stay.className = 'no'; stay.textContent = T.stay;
       stay.onclick = function () {
         try { sessionStorage.setItem(INAPP_KEY, '1'); } catch (e) {}
         bg.remove();
       };
-      sheet.append.apply(sheet, [h, p, open, hint, copy, stay].filter(Boolean)); bg.appendChild(sheet); document.body.appendChild(bg);
+      sheet.append.apply(sheet, [h, p, why, open, copy, stay].filter(Boolean)); bg.append(arrow, sheet); document.body.appendChild(bg);
     }
     offerOwnBrowser();
 
