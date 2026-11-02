@@ -160,7 +160,9 @@
       var token = load();
       var theme = '';
       try { theme = localStorage.getItem(THEME_KEY) || 'auto'; } catch (e) {}
-      var url = APP_URL + '?launcher=1&r=' + Date.now() + (theme ? '&theme=' + theme : '') + (token ? '#k=' + token : '');
+      // &standalone=1: opened from the home screen (the app's frame can't tell), so it doesn't suggest adding it
+      var url = APP_URL + '?launcher=1&r=' + Date.now() + (theme ? '&theme=' + theme : '') + (standalone() ? '&standalone=1' : '') +
+        (token ? '#k=' + token : '');
       var frame = document.getElementById('app');
       // A reload ("Opdatér nu") replaces the app in the frame's history instead of adding to it:
       // with .src, every reload left an entry, and the phone's back swipe went back to the
