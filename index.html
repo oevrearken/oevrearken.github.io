@@ -221,8 +221,9 @@
 
     // ---------- opened inside Messenger, Facebook, Instagram … ----------
     // Their built-in browser keeps its own login and can't put the app on the home screen, so
-    // offer the phone's own browser first. No app can be forced out; a tap on these links usually
-    // works: intent:// opens Android's default browser, x-safari-https:// opens Safari (iOS 17+).
+    // offer the phone's own browser first. No app can be forced out. On Android a tap on an
+    // intent:// link opens the default browser; on iPhone, Messenger blocks every such link
+    // (x-safari-https:// does nothing), so there it's the app's own menu, or copying the link.
     var IN_APP = /FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|Snapchat|TikTok|LinkedInApp/i;
     var INAPP_KEY = 'kitchen_inapp_ok';
     function offerOwnBrowser() {
@@ -240,14 +241,16 @@
       var p = document.createElement('p');
       p.textContent = 'Du har åbnet linket inde i en anden app (fx Messenger). Åbn det i ' + (ios ? 'Safari' : 'telefonens browser') +
         ', så du bliver ved med at være logget ind og kan lægge appen på hjemmeskærmen.';
-      var open = document.createElement('button'); open.className = 'yes'; open.textContent = 'Åbn i ' + (ios ? 'Safari' : 'browseren');
-      open.onclick = function () {
-        location.href = ios ? 'x-safari-https://' + rest : 'intent://' + rest + '#Intent;scheme=https;action=android.intent.action.VIEW;end';
-      };
-      var hint = document.createElement('p'); hint.className = 'hint';
-      hint.textContent = 'Sker der ikke noget? Tryk på menuen (' + (ios ? '⋯' : '⋮') + ') i hjørnet og vælg at åbne i ' +
-        (ios ? 'Safari' : 'browseren') + ' – eller kopiér linket og sæt det ind i ' + (ios ? 'Safari' : 'din browser') + '.';
-      var copy = document.createElement('button'); copy.className = 'no'; copy.textContent = 'Kopiér linket';
+      var open = null;
+      if (android) {
+        open = document.createElement('button'); open.className = 'yes'; open.textContent = 'Åbn i browseren';
+        open.onclick = function () { location.href = 'intent://' + rest + '#Intent;scheme=https;action=android.intent.action.VIEW;end'; };
+      }
+      var hint = document.createElement('p'); if (android) hint.className = 'hint'; // on iPhone it's the main way
+      hint.textContent = ios
+        ? 'Tryk på menuen (⋯) i hjørnet og vælg at åbne i Safari eller ekstern browser. Eller kopiér linket herunder og sæt det ind i Safari.'
+        : 'Sker der ikke noget? Tryk på menuen (⋮) i hjørnet og vælg at åbne i browseren – eller kopiér linket og sæt det ind i din browser.';
+      var copy = document.createElement('button'); copy.className = ios ? 'yes' : 'no'; copy.textContent = 'Kopiér linket';
       copy.onclick = function () {
         var done = function () { copy.textContent = 'Kopieret ✓'; };
         var fallback = function () {
@@ -265,7 +268,7 @@
         try { sessionStorage.setItem(INAPP_KEY, '1'); } catch (e) {}
         bg.remove();
       };
-      sheet.append(h, p, open, hint, copy, stay); bg.appendChild(sheet); document.body.appendChild(bg);
+      sheet.append.apply(sheet, [h, p, open, hint, copy, stay].filter(Boolean)); bg.appendChild(sheet); document.body.appendChild(bg);
     }
     offerOwnBrowser();
 
