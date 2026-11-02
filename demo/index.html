@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Køkken</title>
+  <!-- Home-screen app: icon, name and full-screen mode (what Apps Script can't set itself) -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Køkken">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#0b8043">
+  <link rel="apple-touch-icon" href="/icons/house-green-180.png">
+  <link rel="icon" type="image/png" href="/favicon-32.png">
+  <link rel="manifest" href="/manifest.json">
+  <style>
+    :root { --bg: #f6f6f3; --muted: #6b6b66; }
+    /* Dark by the phone's setting, unless the app said light (Mig → Udseende), or when it said dark */
+    @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #141413; --muted: #a2a29b; } }
+    :root[data-theme="dark"] { --bg: #141413; --muted: #a2a29b; }
+    /* Start screen while Google loads the app (a few seconds); the app says when it's drawn */
+    .splash { position: fixed; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center;
+      justify-content: center; gap: 12px; background: var(--bg); color: var(--muted);
+      font: 600 17px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; transition: opacity .3s ease; }
+    .splash.gone { opacity: 0; pointer-events: none; }
+    .splash-icon { width: 80px; height: 80px; border-radius: 18px; animation: breathe 1.8s ease-in-out infinite; }
+    /* First visit: nothing shown until the app's name and icon are known (no wrong name flashing by) */
+    .splash.unknown .splash-icon, .splash.unknown #splash-name { visibility: hidden; }
+    @keyframes breathe { 0%, 100% { transform: scale(1); opacity: .85; } 50% { transform: scale(1.08); opacity: 1; } }
+    @media (prefers-reduced-motion: reduce) { .splash-icon { animation: none; } .splash { transition: none; } }
+    html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+    iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+    /* Permission sheet: iPhone only allows asking for notifications from this page, after a tap */
+    .sheet-bg { position: fixed; inset: 0; z-index: 10; background: rgba(0,0,0,.45); display: flex;
+      align-items: flex-end; justify-content: center; padding: 16px; padding-bottom: calc(16px + env(safe-area-inset-bottom));
+      font: 16px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .sheet { width: 100%; max-width: 520px; background: #fff; color: #1d1d1b; border-radius: 14px; padding: 20px; }
+    @media (prefers-color-scheme: dark) { .sheet { background: #1f1f1d; color: #ecece8; } }
+    .sheet h2 { margin: 0 0 8px; font-size: 19px; }
+    .sheet p { margin: 0 0 16px; opacity: .8; }
+    .sheet button { display: block; width: 100%; min-height: 48px; border-radius: 12px; border: 0; font: inherit;
+      font-weight: 600; margin-top: 8px; cursor: pointer; }
+    .sheet .yes { background: #0b8043; color: #fff; }
+    .sheet .no { background: transparent; color: inherit; border: 1px solid rgba(128,128,128,.4); }
+    .sheet .hint { font-size: 14px; margin: 12px 0 4px; }
+    /* Points at the in-app browser's menu (⋯ / ⋮), just above the top right corner of the page */
+    .menu-arrow { position: fixed; top: 6px; right: 10px; width: 110px; height: 150px; color: #fff; pointer-events: none;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,.35)); animation: nudge 1.2s ease-in-out infinite; }
+    @keyframes nudge { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(0, -8px); } }
+    @media (prefers-reduced-motion: reduce) { .menu-arrow { animation: none; } }
+    /* Floating paste button for the Opskrifter tab (only this page may read the clipboard) */
+    /* Drawn exactly over the app's #paste-slot (see showPasteButton), looking like the app's buttons */
+    .paste-btn { position: fixed; z-index: 5; box-sizing: border-box; min-height: 48px; padding: 0 16px; border-radius: 12px;
+      border: 1px solid #e2e2dc; background: #fff; color: #1d1d1b;
+      font: 600 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+    @media (prefers-color-scheme: dark) { .paste-btn { background: #1f1f1d; color: #ecece8; border-color: #33332f; } }
+    .paste-btn:active { filter: brightness(.85); }
+    /* On the app's tab change: fade and slide in exactly like the app's page (see d.enter) */
+    @keyframes paste-in { from { opacity: 0; transform: translateY(var(--shift, 6px)); } to { opacity: 1; transform: none; } }
+    .paste-btn svg { width: 20px; height: 20px; }
+  </style>
+</head>
+<body>
+  <iframe id="app" title="Køkken" allow="clipboard-read; clipboard-write"></iframe>
+  <div class="splash unknown" id="splash" role="status"><img class="splash-icon" id="splash-icon" src="/icons/house-green-192.png" alt=""><div id="splash-name">Køkken</div></div>
+  <script>
+    /*
+     * Launcher for the Køkken app (Google Apps Script).
+     * It shows the app full-screen and keeps the login token in THIS site's storage, which
+     * Safari doesn't clear (unlike storage inside Google's frame). The app sends the token
+     * here with postMessage after login/logout; on start we hand it to the app in the URL hash.
+     * See README.md → "Launcher".
+     */
+    // This same page runs in two places on the site: / (the kitchen) and /demo/ (the demo copy,
+    // see the app's README → Demo). Where it is decides which app it shows, and the demo keeps its
+    // own login and settings: the two share this site's storage, so the demo's names get a prefix.
+    // The icons are always the site's own (/icons/…). Keep /demo/index.html and /demo/sw.js
+    // identical copies of these files.
+    var SITE = location.pathname.replace(/[^\/]*$/, '');                 // '/' or '/demo/'
+    var APPS = {
+      '/': 'https://script.google.com/macros/s/AKfycbw9KSo4tn_JtoyBpBGlz8b8NnUTCO24bFFQubAmB3DPLTZmQeA-W4WSWOX-LTn8H9_R/exec',
+      '/demo/': 'https://script.google.com/macros/s/AKfycby-jodvK8GHxCM6LYbn8zsmRpcBVIQPkhFL7qAZ2cBYnPDF2LfpqmL-pegdPo-4ld_lWQ/exec'
+    };
+    var APP_URL = APPS[SITE] || APPS['/'];
+    var NS = SITE === '/' ? '' : SITE.replace(/^\/|\/$/g, '') + '_';   // '' or 'demo_'
+    var KEY = NS + 'kitchen_token';
+    var SNAP_KEY = NS + 'kitchen_snapshot';
+    // Apps Script serves the app's code from https://n-<hash>-script.googleusercontent.com
+    var APP_ORIGIN = /^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/;
+
+    function load() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+    function save(t) { try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch (e) {} }
+
+    // ---------- app name and home-screen icon (set in the app) ----------
+    // The phone copies both when the app is added to the home screen: the name and icon from the
+    // tags below on iPhone, from the manifest on Android. Changing them later doesn't change an
+    // app already on the home screen.
+    var NAME_KEY = NS + 'kitchen_app_name';
+    var ICON_KEY = NS + 'kitchen_icon';
+    // motif-colour (the app's Settings.gs APP_ICONS); 'pan-green' is the original icon-*.png
+    var ICONS = ['pan', 'pasta', 'pot', 'house'].reduce(function (all, m) {
+      return all.concat(['green', 'blue', 'orange', 'purple'].map(function (c) { return m + '-' + c; }));
+    }, []);
+    var appName = 'Køkken', appIcon = 'house-green'; // until the app says otherwise (the kitchen's default)
+    var base = location.href.replace(/[#?].*$/, '').replace(/[^\/]*$/, '');
+    function iconFile(n) { return appIcon === 'pan-green' ? (n === 180 ? '/apple-touch-icon.png' : '/icon-' + n + '.png') : '/icons/' + appIcon + '-' + n + '.png'; }
+    function applyName(name, remember) {
+      name = String(name || '').trim().slice(0, 30);
+      if (!name) return;
+      appName = name;
+      if (remember) { try { localStorage.setItem(NAME_KEY, name); } catch (e) {} }
+      document.title = name;
+      document.querySelector('meta[name="apple-mobile-web-app-title"]').setAttribute('content', name);
+      document.getElementById('app').title = name;
+      document.getElementById('splash-name').textContent = name;
+      document.getElementById('splash').classList.remove('unknown');
+      updateManifest();
+    }
+    function applyIcon(icon, remember) {
+      if (ICONS.indexOf(icon) < 0) return;
+      appIcon = icon;
+      if (remember) { try { localStorage.setItem(ICON_KEY, icon); } catch (e) {} }
+      document.querySelector('link[rel="apple-touch-icon"]').href = iconFile(180);
+      document.querySelector('link[rel="icon"]').href = iconFile(192);
+      document.getElementById('splash-icon').src = iconFile(192);
+      updateManifest();
+    }
+    // Android reads the name and icon from the manifest: point it at a generated one.
+    function updateManifest() {
+      var manifest = {
+        name: appName, short_name: appName, lang: 'da', start_url: base, scope: base, display: 'standalone',
+        background_color: '#f6f6f3', theme_color: '#0b8043',
+        icons: [192, 512].map(function (n) {
+          return { src: location.origin + iconFile(n), sizes: n + 'x' + n, type: 'image/png', purpose: 'any maskable' };
+        })
+      };
+      document.querySelector('link[rel="manifest"]').href =
+        'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifest));
+    }
+    try { applyIcon(localStorage.getItem(ICON_KEY), false); } catch (e) {}
+    try { applyName(localStorage.getItem(NAME_KEY), false); } catch (e) {}
+    updateManifest(); // this place's own start address (/demo/ for the demo), even before a name is saved
+    // Ask the app for its name and icon right away (much quicker than the app itself), so even a
+    // first visit shows them. The icon only if none is saved: that may be the person's own choice.
+    var hadIcon = false;
+    try { hadIcon = !!localStorage.getItem(ICON_KEY); } catch (e) {}
+    fetch(APP_URL + '?meta=1').then(function (r) { return r.json(); }).then(function (d) {
+      if (!hadIcon) applyIcon(d.icon, true);
+      applyName(d.name, true);
+    }).catch(function () {});
+
+    // A fresh address every time (&r=…), so no cache on the way can hand out an older version of
+    // the app; the app asks for a reload ('koekken-reload') when it sees it's out of date.
+    // ---------- start screen + appearance ----------
+    var THEME_KEY = NS + 'kitchen_theme';
+    function applyTheme(t) {
+      if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
+      else document.documentElement.removeAttribute('data-theme');
+    }
+    try { applyTheme(localStorage.getItem(THEME_KEY)); } catch (e) {}
+    var splashTimer = null;
+    function showSplash() {
+      document.getElementById('splash').classList.remove('gone');
+      clearTimeout(splashTimer);
+      splashTimer = setTimeout(hideSplash, 20000); // never hide the app for good, whatever happens
+    }
+    function hideSplash() { clearTimeout(splashTimer); document.getElementById('splash').classList.add('gone'); }
+
+    function loadApp() {
+      showSplash();
+      var token = load();
+      var theme = '';
+      try { theme = localStorage.getItem(THEME_KEY) || 'auto'; } catch (e) {}
+      // &standalone=1: opened from the home screen (the app's frame can't tell), so it doesn't suggest adding it
+      var url = APP_URL + '?launcher=1&r=' + Date.now() + (theme ? '&theme=' + theme : '') + (standalone() ? '&standalone=1' : '') +
+        (token ? '#k=' + token : '');
+      var frame = document.getElementById('app');
+      // A reload ("Opdatér nu") replaces the app in the frame's history instead of adding to it:
+      // with .src, every reload left an entry, and the phone's back swipe went back to the
+      // previous copy of the app (start screen, then an old screen) instead of doing nothing.
+      if (frame.getAttribute('src')) {
+        try { frame.contentWindow.location.replace(url); return; } catch (e) {}
+      }
+      frame.src = url;
+    }
+    loadApp();
+
+    // ---------- rotation ----------
+    // After a rotation, iPhone can leave this page slightly scrolled or with old sizes, so taps land
+    // beside what's drawn. Pin it back: no scroll, and the app frame exactly the screen's size.
+    function fit() {
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+      var f = document.getElementById('app');
+      f.style.width = window.innerWidth + 'px';
+      f.style.height = window.innerHeight + 'px';
+    }
+    function fitSoon() { fit(); [100, 350, 800].forEach(function (ms) { setTimeout(fit, ms); }); }
+    window.addEventListener('resize', fitSoon);
+    window.addEventListener('orientationchange', fitSoon);
+    window.addEventListener('scroll', function () { if (window.scrollY || window.scrollX) window.scrollTo(0, 0); });
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', fitSoon);
+    fit();
+
+    window.addEventListener('message', function (e) {
+      if (!APP_ORIGIN.test(e.origin)) return;
+      var d = e.data;
+      if (!d) return;
+      if (d.type === 'koekken-token') save(typeof d.token === 'string' && /^[0-9a-f]{64}$/.test(d.token) ? d.token : null);
+      if (d.type === 'koekken-paste') showPasteButton(d, e.source, e.origin);
+      if (d.type === 'koekken-name') {
+        if (d.icon) applyIcon(d.icon, true); // the person's own icon, else the kitchen's
+        applyName(d.name, true);
+      }
+      if (d.type === 'koekken-reload') loadApp();
+      if (d.type === 'koekken-ready') hideSplash();
+      if (d.type === 'koekken-theme') {
+        var t = d.theme === 'light' || d.theme === 'dark' ? d.theme : '';
+        try { t ? localStorage.setItem(THEME_KEY, t) : localStorage.removeItem(THEME_KEY); } catch (err) {}
+        applyTheme(t);
+      }
+      // The app's last known content, kept here (the app's own storage may be cleared by the phone)
+      // and handed back when it starts, so it can show the calendar at once.
+      if (d.type === 'koekken-snapshot-save') {
+        try { d.snap ? localStorage.setItem(SNAP_KEY, String(d.snap)) : localStorage.removeItem(SNAP_KEY); } catch (err) {}
+      }
+      if (d.type === 'koekken-snapshot-get') {
+        var snap = null;
+        try { snap = localStorage.getItem(SNAP_KEY); } catch (err) {}
+        e.source.postMessage({ type: 'koekken-snapshot', snap: snap }, e.origin);
+      }
+      if (d.type === 'koekken-push') handlePush(d, function (reply) {
+        reply.type = 'koekken-push-status';
+        reply.id = d.id;
+        e.source.postMessage(reply, e.origin);
+      });
+    });
+
+    // ---------- opened inside Messenger, Facebook, Instagram … ----------
+    // Their built-in browser keeps its own login and can't put the app on the home screen, so
+    // offer the phone's own browser first. No app can be forced out. On Android a tap on an
+    // intent:// link opens the default browser; on iPhone, Messenger blocks every such link
+    // (x-safari-https:// does nothing), so there it's the app's own menu, or copying the link.
+    var IN_APP = /FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|Snapchat|TikTok|LinkedInApp/i;
+    var INAPP_KEY = NS + 'kitchen_inapp_ok';
+    function offerOwnBrowser() {
+      var ua = navigator.userAgent;
+      var ios = /iPhone|iPad|iPod/.test(ua), android = /Android/.test(ua);
+      if (!IN_APP.test(ua) || !(ios || android)) return;
+      try { if (sessionStorage.getItem(INAPP_KEY)) return; } catch (e) {}
+      var plain = location.href.replace(/#.*$/, '');
+      var rest = plain.replace(/^https:\/\//, '');
+      var bg = document.createElement('div');
+      bg.className = 'sheet-bg';
+      var sheet = document.createElement('div');
+      sheet.className = 'sheet';
+      // Danish, or English for a phone in another language (the menu item is named as the phone shows it)
+      var T = /^da\b/i.test(navigator.language || '') ? {
+        title: 'Åbn i ' + (ios ? 'Safari' : 'din browser'), item: 'Åbn i ekstern browser',
+        tap: 'Tryk på {menu} øverst til højre, og vælg "{item}".', why: 'Så forbliver du logget ind og kan lægge appen på hjemmeskærmen.',
+        open: 'Åbn i browseren', copy: 'Kopiér linket', copied: 'Kopieret ✓', stay: 'Fortsæt her alligevel'
+      } : {
+        title: 'Open in ' + (ios ? 'Safari' : 'your browser'), item: 'Open in external browser',
+        tap: 'Tap {menu} in the top right corner, and choose "{item}".', why: 'Then you stay logged in and can add the app to your home screen.',
+        open: 'Open in browser', copy: 'Copy the link', copied: 'Copied ✓', stay: 'Continue here anyway'
+      };
+      var h = document.createElement('h2'); h.textContent = T.title;
+      var p = document.createElement('p');
+      p.textContent = T.tap.replace('{menu}', ios ? '⋯' : '⋮').replace('{item}', T.item);
+      var why = document.createElement('p'); why.className = 'hint';
+      why.textContent = T.why;
+      var open = null;
+      if (android) { // intent:// opens the default browser (Messenger on iPhone blocks its x-safari-https://)
+        open = document.createElement('button'); open.className = 'yes'; open.textContent = T.open;
+        open.onclick = function () { location.href = 'intent://' + rest + '#Intent;scheme=https;action=android.intent.action.VIEW;end'; };
+      }
+      // A curved arrow from the sheet up to the corner
+      var arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      arrow.setAttribute('class', 'menu-arrow'); arrow.setAttribute('viewBox', '0 0 110 150'); arrow.setAttribute('aria-hidden', 'true');
+      // Ends going straight up: the menu is right above the tip, not off to the side
+      arrow.innerHTML = '<path d="M24 142 C 50 116, 88 84, 88 14" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>' +
+        '<path d="M70 32 L 88 12 L 106 32" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>';
+      var copy = document.createElement('button'); copy.className = 'no'; copy.textContent = T.copy;
+      copy.onclick = function () {
+        var done = function () { copy.textContent = T.copied; };
+        var fallback = function () {
+          var input = document.createElement('input');
+          input.value = plain; input.readOnly = true; input.style.cssText = 'position:fixed;opacity:0';
+          document.body.appendChild(input); input.select(); input.setSelectionRange(0, plain.length);
+          try { document.execCommand('copy'); done(); } catch (e) {}
+          input.remove();
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(plain).then(done, fallback);
+        else fallback();
+      };
+      var stay = document.createElement('button'); stay.className = 'no'; stay.textContent = T.stay;
+      stay.onclick = function () {
+        try { sessionStorage.setItem(INAPP_KEY, '1'); } catch (e) {}
+        bg.remove();
+      };
+      sheet.append.apply(sheet, [h, p, why, open, copy, stay].filter(Boolean)); bg.append(arrow, sheet); document.body.appendChild(bg);
+    }
+    offerOwnBrowser();
+
+    // ---------- paste button (the app's frame may not read the clipboard; this page may) ----------
+    var pasteBtn = null;
+    /**
+     * d.rect is the slot's position inside the app's frame, d.frame that frame's size. Google's
+     * frame fills the launcher below Google's banner, so the offset is our size minus the frame's.
+     */
+    function showPasteButton(d, source, origin) {
+      if (d.action !== 'show') { if (pasteBtn) pasteBtn.remove(); pasteBtn = null; return; }
+      if (!pasteBtn) pasteBtn = createPasteButton(d.label, source, origin);
+      var top = d.rect.top + (window.innerHeight - d.frame.height);
+      var left = d.rect.left + (window.innerWidth - d.frame.width);
+      var visible = d.rect.top >= 0 && d.rect.top + d.rect.height <= d.frame.height - 64; // not under the tab bar
+      pasteBtn.style.top = top + 'px';
+      pasteBtn.style.left = left + 'px';
+      pasteBtn.style.width = d.rect.width + 'px';
+      pasteBtn.style.height = d.rect.height + 'px';
+      pasteBtn.style.visibility = visible ? 'visible' : 'hidden';
+      if (d.enter && !(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+        pasteBtn.style.setProperty('--shift', (Number(d.enter.shift) || 0) + 'px');
+        pasteBtn.style.animation = 'none';
+        void pasteBtn.offsetWidth; // restart the animation
+        pasteBtn.style.animation = 'paste-in ' + (Number(d.enter.ms) || 180) + 'ms ease-out';
+      }
+    }
+    function createPasteButton(label, source, origin) {
+      var pasteBtn = document.createElement('button');
+      pasteBtn.className = 'paste-btn';
+      pasteBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" ' +
+        'stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"/>' +
+        '<path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg>';
+      pasteBtn.appendChild(document.createTextNode(String(label || 'Indsæt').replace(/^📋\s*/, '')));
+      pasteBtn.onclick = function () {
+        var send = function (msg) { msg.type = 'koekken-paste-result'; source.postMessage(msg, origin); };
+        if (!navigator.clipboard || !navigator.clipboard.readText) return send({ error: 'unsupported' });
+        navigator.clipboard.readText().then(function (text) { send({ text: text }); },
+          function (err) { send({ error: String(err) }); });
+      };
+      document.body.appendChild(pasteBtn);
+      return pasteBtn;
+    }
+
+    // ---------- push notifications (see sw.js and the app's Push.gs) ----------
+    var swReady = 'serviceWorker' in navigator ? navigator.serviceWorker.register('sw.js').then(function () {
+      return navigator.serviceWorker.ready;
+    }) : null;
+
+    function pushSupported() {
+      return !!swReady && 'PushManager' in window && 'Notification' in window;
+    }
+    function standalone() {
+      return window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    }
+    function keyBytes(b64url) {
+      var s = atob(b64url.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b64url.length + 3) % 4));
+      var out = new Uint8Array(s.length);
+      for (var i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+      return out;
+    }
+    function status(done) {
+      var base = { supported: pushSupported(), standalone: standalone(),
+        permission: 'Notification' in window ? Notification.permission : 'unsupported', subscription: null };
+      if (!base.supported) return done(base);
+      swReady.then(function (reg) { return reg.pushManager.getSubscription(); })
+        .then(function (sub) { base.subscription = sub ? sub.toJSON() : null; done(base); })
+        .catch(function (err) { base.error = String(err); done(base); });
+    }
+
+    function handlePush(d, reply) {
+      if (d.action === 'status') return status(reply);
+      if (!pushSupported()) return status(reply);
+      if (d.action === 'disable') {
+        return swReady.then(function (reg) { return reg.pushManager.getSubscription(); })
+          .then(function (sub) { return sub && sub.unsubscribe(); })
+          .then(function () { status(reply); }, function () { status(reply); });
+      }
+      if (d.action === 'enable') askPermission(d.vapidKey, reply);
+    }
+
+    /** Shows the sheet; the tap on "Tillad" is what lets us ask for permission. */
+    function askPermission(vapidKey, reply) {
+      var bg = document.createElement('div');
+      bg.className = 'sheet-bg';
+      var sheet = document.createElement('div');
+      sheet.className = 'sheet';
+      var h = document.createElement('h2'); h.textContent = 'Slå påmindelser til?';
+      var p = document.createElement('p'); p.textContent = appName + ' sender fx en påmindelse om madklub-tilmelding, hvis du ikke har tilmeldt dig endnu.';
+      var yes = document.createElement('button'); yes.className = 'yes'; yes.textContent = 'Tillad';
+      var no = document.createElement('button'); no.className = 'no'; no.textContent = 'Ikke nu';
+      sheet.append(h, p, yes, no); bg.appendChild(sheet); document.body.appendChild(bg);
+
+      no.onclick = function () { bg.remove(); status(reply); };
+      yes.onclick = function () {
+        yes.disabled = true;
+        Notification.requestPermission().then(function (perm) {
+          if (perm !== 'granted') { bg.remove(); return status(reply); }
+          return swReady.then(function (reg) {
+            return reg.pushManager.getSubscription().then(function (old) {
+              return old ? old.unsubscribe() : null; // a fresh subscription for the app's current key
+            }).then(function () {
+              return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(vapidKey) });
+            });
+          }).then(function () { bg.remove(); status(reply); });
+        }).catch(function (err) { bg.remove(); status(function (s) { s.error = String(err); reply(s); }); });
+      };
+    }
+  </script>
+</body>
+</html>

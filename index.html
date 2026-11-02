@@ -10,9 +10,9 @@
   <meta name="apple-mobile-web-app-title" content="Køkken">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="theme-color" content="#0b8043">
-  <link rel="apple-touch-icon" href="icons/house-green-180.png">
-  <link rel="icon" type="image/png" href="favicon-32.png">
-  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="/icons/house-green-180.png">
+  <link rel="icon" type="image/png" href="/favicon-32.png">
+  <link rel="manifest" href="/manifest.json">
   <style>
     :root { --bg: #f6f6f3; --muted: #6b6b66; }
     /* Dark by the phone's setting, unless the app said light (Mig → Udseende), or when it said dark */
@@ -63,7 +63,7 @@
 </head>
 <body>
   <iframe id="app" title="Køkken" allow="clipboard-read; clipboard-write"></iframe>
-  <div class="splash unknown" id="splash" role="status"><img class="splash-icon" id="splash-icon" src="icons/house-green-192.png" alt=""><div id="splash-name">Køkken</div></div>
+  <div class="splash unknown" id="splash" role="status"><img class="splash-icon" id="splash-icon" src="/icons/house-green-192.png" alt=""><div id="splash-name">Køkken</div></div>
   <script>
     /*
      * Launcher for the Køkken app (Google Apps Script).
@@ -72,9 +72,20 @@
      * here with postMessage after login/logout; on start we hand it to the app in the URL hash.
      * See README.md → "Launcher".
      */
-    var APP_URL = 'https://script.google.com/macros/s/AKfycbw9KSo4tn_JtoyBpBGlz8b8NnUTCO24bFFQubAmB3DPLTZmQeA-W4WSWOX-LTn8H9_R/exec';
-    var KEY = 'kitchen_token';
-    var SNAP_KEY = 'kitchen_snapshot';
+    // This same page runs in two places on the site: / (the kitchen) and /demo/ (the demo copy,
+    // see the app's README → Demo). Where it is decides which app it shows, and the demo keeps its
+    // own login and settings: the two share this site's storage, so the demo's names get a prefix.
+    // The icons are always the site's own (/icons/…). Keep /demo/index.html and /demo/sw.js
+    // identical copies of these files.
+    var SITE = location.pathname.replace(/[^\/]*$/, '');                 // '/' or '/demo/'
+    var APPS = {
+      '/': 'https://script.google.com/macros/s/AKfycbw9KSo4tn_JtoyBpBGlz8b8NnUTCO24bFFQubAmB3DPLTZmQeA-W4WSWOX-LTn8H9_R/exec',
+      '/demo/': 'https://script.google.com/macros/s/AKfycby-jodvK8GHxCM6LYbn8zsmRpcBVIQPkhFL7qAZ2cBYnPDF2LfpqmL-pegdPo-4ld_lWQ/exec'
+    };
+    var APP_URL = APPS[SITE] || APPS['/'];
+    var NS = SITE === '/' ? '' : SITE.replace(/^\/|\/$/g, '') + '_';   // '' or 'demo_'
+    var KEY = NS + 'kitchen_token';
+    var SNAP_KEY = NS + 'kitchen_snapshot';
     // Apps Script serves the app's code from https://n-<hash>-script.googleusercontent.com
     var APP_ORIGIN = /^https:\/\/[a-z0-9-]+-script\.googleusercontent\.com$/;
 
@@ -85,15 +96,15 @@
     // The phone copies both when the app is added to the home screen: the name and icon from the
     // tags below on iPhone, from the manifest on Android. Changing them later doesn't change an
     // app already on the home screen.
-    var NAME_KEY = 'kitchen_app_name';
-    var ICON_KEY = 'kitchen_icon';
+    var NAME_KEY = NS + 'kitchen_app_name';
+    var ICON_KEY = NS + 'kitchen_icon';
     // motif-colour (the app's Settings.gs APP_ICONS); 'pan-green' is the original icon-*.png
     var ICONS = ['pan', 'pasta', 'pot', 'house'].reduce(function (all, m) {
       return all.concat(['green', 'blue', 'orange', 'purple'].map(function (c) { return m + '-' + c; }));
     }, []);
     var appName = 'Køkken', appIcon = 'house-green'; // until the app says otherwise (the kitchen's default)
     var base = location.href.replace(/[#?].*$/, '').replace(/[^\/]*$/, '');
-    function iconFile(n) { return appIcon === 'pan-green' ? (n === 180 ? 'apple-touch-icon.png' : 'icon-' + n + '.png') : 'icons/' + appIcon + '-' + n + '.png'; }
+    function iconFile(n) { return appIcon === 'pan-green' ? (n === 180 ? '/apple-touch-icon.png' : '/icon-' + n + '.png') : '/icons/' + appIcon + '-' + n + '.png'; }
     function applyName(name, remember) {
       name = String(name || '').trim().slice(0, 30);
       if (!name) return;
@@ -121,7 +132,7 @@
         name: appName, short_name: appName, lang: 'da', start_url: base, scope: base, display: 'standalone',
         background_color: '#f6f6f3', theme_color: '#0b8043',
         icons: [192, 512].map(function (n) {
-          return { src: base + iconFile(n), sizes: n + 'x' + n, type: 'image/png', purpose: 'any maskable' };
+          return { src: location.origin + iconFile(n), sizes: n + 'x' + n, type: 'image/png', purpose: 'any maskable' };
         })
       };
       document.querySelector('link[rel="manifest"]').href =
@@ -129,6 +140,7 @@
     }
     try { applyIcon(localStorage.getItem(ICON_KEY), false); } catch (e) {}
     try { applyName(localStorage.getItem(NAME_KEY), false); } catch (e) {}
+    updateManifest(); // this place's own start address (/demo/ for the demo), even before a name is saved
     // Ask the app for its name and icon right away (much quicker than the app itself), so even a
     // first visit shows them. The icon only if none is saved: that may be the person's own choice.
     var hadIcon = false;
@@ -141,7 +153,7 @@
     // A fresh address every time (&r=…), so no cache on the way can hand out an older version of
     // the app; the app asks for a reload ('koekken-reload') when it sees it's out of date.
     // ---------- start screen + appearance ----------
-    var THEME_KEY = 'kitchen_theme';
+    var THEME_KEY = NS + 'kitchen_theme';
     function applyTheme(t) {
       if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t);
       else document.documentElement.removeAttribute('data-theme');
@@ -232,7 +244,7 @@
     // intent:// link opens the default browser; on iPhone, Messenger blocks every such link
     // (x-safari-https:// does nothing), so there it's the app's own menu, or copying the link.
     var IN_APP = /FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|Snapchat|TikTok|LinkedInApp/i;
-    var INAPP_KEY = 'kitchen_inapp_ok';
+    var INAPP_KEY = NS + 'kitchen_inapp_ok';
     function offerOwnBrowser() {
       var ua = navigator.userAgent;
       var ios = /iPhone|iPad|iPod/.test(ua), android = /Android/.test(ua);
