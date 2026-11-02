@@ -42,6 +42,7 @@
       font-weight: 600; margin-top: 8px; cursor: pointer; }
     .sheet .yes { background: #0b8043; color: #fff; }
     .sheet .no { background: transparent; color: inherit; border: 1px solid rgba(128,128,128,.4); }
+    .sheet .hint { font-size: 14px; margin: 12px 0 4px; }
     /* Floating paste button for the Opskrifter tab (only this page may read the clipboard) */
     /* Drawn exactly over the app's #paste-slot (see showPasteButton), looking like the app's buttons */
     .paste-btn { position: fixed; z-index: 5; box-sizing: border-box; min-height: 48px; padding: 0 16px; border-radius: 12px;
@@ -217,6 +218,56 @@
         e.source.postMessage(reply, e.origin);
       });
     });
+
+    // ---------- opened inside Messenger, Facebook, Instagram … ----------
+    // Their built-in browser keeps its own login and can't put the app on the home screen, so
+    // offer the phone's own browser first. No app can be forced out; a tap on these links usually
+    // works: intent:// opens Android's default browser, x-safari-https:// opens Safari (iOS 17+).
+    var IN_APP = /FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|Snapchat|TikTok|LinkedInApp/i;
+    var INAPP_KEY = 'kitchen_inapp_ok';
+    function offerOwnBrowser() {
+      var ua = navigator.userAgent;
+      var ios = /iPhone|iPad|iPod/.test(ua), android = /Android/.test(ua);
+      if (!IN_APP.test(ua) || !(ios || android)) return;
+      try { if (sessionStorage.getItem(INAPP_KEY)) return; } catch (e) {}
+      var plain = location.href.replace(/#.*$/, '');
+      var rest = plain.replace(/^https:\/\//, '');
+      var bg = document.createElement('div');
+      bg.className = 'sheet-bg';
+      var sheet = document.createElement('div');
+      sheet.className = 'sheet';
+      var h = document.createElement('h2'); h.textContent = 'Åbn i ' + (ios ? 'Safari' : 'din browser');
+      var p = document.createElement('p');
+      p.textContent = 'Du har åbnet linket inde i en anden app (fx Messenger). Åbn det i ' + (ios ? 'Safari' : 'telefonens browser') +
+        ', så du bliver ved med at være logget ind og kan lægge appen på hjemmeskærmen.';
+      var open = document.createElement('button'); open.className = 'yes'; open.textContent = 'Åbn i ' + (ios ? 'Safari' : 'browseren');
+      open.onclick = function () {
+        location.href = ios ? 'x-safari-https://' + rest : 'intent://' + rest + '#Intent;scheme=https;action=android.intent.action.VIEW;end';
+      };
+      var hint = document.createElement('p'); hint.className = 'hint';
+      hint.textContent = 'Sker der ikke noget? Tryk på menuen (' + (ios ? '⋯' : '⋮') + ') i hjørnet og vælg at åbne i ' +
+        (ios ? 'Safari' : 'browseren') + ' – eller kopiér linket og sæt det ind i ' + (ios ? 'Safari' : 'din browser') + '.';
+      var copy = document.createElement('button'); copy.className = 'no'; copy.textContent = 'Kopiér linket';
+      copy.onclick = function () {
+        var done = function () { copy.textContent = 'Kopieret ✓'; };
+        var fallback = function () {
+          var input = document.createElement('input');
+          input.value = plain; input.readOnly = true; input.style.cssText = 'position:fixed;opacity:0';
+          document.body.appendChild(input); input.select(); input.setSelectionRange(0, plain.length);
+          try { document.execCommand('copy'); done(); } catch (e) {}
+          input.remove();
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(plain).then(done, fallback);
+        else fallback();
+      };
+      var stay = document.createElement('button'); stay.className = 'no'; stay.textContent = 'Fortsæt her alligevel';
+      stay.onclick = function () {
+        try { sessionStorage.setItem(INAPP_KEY, '1'); } catch (e) {}
+        bg.remove();
+      };
+      sheet.append(h, p, open, hint, copy, stay); bg.appendChild(sheet); document.body.appendChild(bg);
+    }
+    offerOwnBrowser();
 
     // ---------- paste button (the app's frame may not read the clipboard; this page may) ----------
     var pasteBtn = null;
