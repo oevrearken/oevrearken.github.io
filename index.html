@@ -46,7 +46,7 @@
     /* Points at the in-app browser's menu (⋯ / ⋮), just above the top right corner of the page */
     .menu-arrow { position: fixed; top: 6px; right: 10px; width: 110px; height: 150px; color: #fff; pointer-events: none;
       filter: drop-shadow(0 2px 4px rgba(0,0,0,.35)); animation: nudge 1.2s ease-in-out infinite; }
-    @keyframes nudge { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(5px, -8px); } }
+    @keyframes nudge { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(0, -8px); } }
     @media (prefers-reduced-motion: reduce) { .menu-arrow { animation: none; } }
     /* Floating paste button for the Opskrifter tab (only this page may read the clipboard) */
     /* Drawn exactly over the app's #paste-slot (see showPasteButton), looking like the app's buttons */
@@ -265,8 +265,9 @@
       // A curved arrow from the sheet up to the corner
       var arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       arrow.setAttribute('class', 'menu-arrow'); arrow.setAttribute('viewBox', '0 0 110 150'); arrow.setAttribute('aria-hidden', 'true');
-      arrow.innerHTML = '<path d="M30 145 C 30 80, 60 40, 95 12" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>' +
-        '<path d="M70 10 L 97 10 L 92 37" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>';
+      // Ends going straight up: the menu is right above the tip, not off to the side
+      arrow.innerHTML = '<path d="M12 140 C 60 140, 88 110, 88 14" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>' +
+        '<path d="M70 32 L 88 12 L 106 32" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>';
       var copy = document.createElement('button'); copy.className = 'no'; copy.textContent = T.copy;
       copy.onclick = function () {
         var done = function () { copy.textContent = T.copied; };
