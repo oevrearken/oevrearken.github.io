@@ -266,7 +266,7 @@
       var arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
       arrow.setAttribute('class', 'menu-arrow'); arrow.setAttribute('viewBox', '0 0 110 150'); arrow.setAttribute('aria-hidden', 'true');
       // Ends going straight up: the menu is right above the tip, not off to the side
-      arrow.innerHTML = '<path d="M12 140 C 60 140, 88 110, 88 14" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>' +
+      arrow.innerHTML = '<path d="M24 142 C 50 116, 88 84, 88 14" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>' +
         '<path d="M70 32 L 88 12 L 106 32" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>';
       var copy = document.createElement('button'); copy.className = 'no'; copy.textContent = T.copy;
       copy.onclick = function () {
