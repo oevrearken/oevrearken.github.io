@@ -7,12 +7,10 @@
   <!-- Home-screen app: icon, name and full-screen mode (what Apps Script can't set itself) -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Køkken">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="theme-color" content="#0b8043">
   <link rel="apple-touch-icon" href="/icons/house-green-180.png">
   <link rel="icon" type="image/png" href="/favicon-32.png">
-  <link rel="manifest" href="/manifest.json">
   <style>
     :root { --bg: #f6f6f3; --muted: #6b6b66; }
     /* Dark by the phone's setting, unless the app said light (Mig → Udseende), or when it said dark */
@@ -103,6 +101,7 @@
       return all.concat(['green', 'blue', 'orange', 'purple'].map(function (c) { return m + '-' + c; }));
     }, []);
     var appName = 'Køkken', appIcon = 'house-green'; // until the app says otherwise (the kitchen's default)
+    var named = false; // the real name known (saved, or from the app): only then the home-screen name tags
     var base = location.href.replace(/[#?].*$/, '').replace(/[^\/]*$/, '');
     function iconFile(n) { return appIcon === 'pan-green' ? (n === 180 ? '/apple-touch-icon.png' : '/icon-' + n + '.png') : '/icons/' + appIcon + '-' + n + '.png'; }
     function applyName(name, remember) {
@@ -110,8 +109,9 @@
       if (!name) return;
       appName = name;
       if (remember) { try { localStorage.setItem(NAME_KEY, name); } catch (e) {} }
+      named = true;
       document.title = name;
-      document.querySelector('meta[name="apple-mobile-web-app-title"]').setAttribute('content', name);
+      headTag('meta', { name: 'apple-mobile-web-app-title' }).setAttribute('content', name);
       document.getElementById('app').title = name;
       document.getElementById('splash-name').textContent = name;
       document.getElementById('splash').classList.remove('unknown');
@@ -126,8 +126,22 @@
       document.getElementById('splash-icon').src = iconFile(192);
       updateManifest();
     }
-    // Android reads the name and icon from the manifest: point it at a generated one.
+    // The home-screen name: iPhone takes it from the apple-mobile-web-app-title tag, Android from the
+    // manifest. Neither is in the page from the start with a placeholder "Køkken": a phone may read
+    // the first version it sees and keep it (the name then stayed "Køkken" whatever the admin set),
+    // so they're only added once the real name is known (applyName). Until then, the page title.
+    function headTag(tag, attrs) {
+      var sel = tag + Object.keys(attrs).map(function (k) { return '[' + k + '="' + attrs[k] + '"]'; }).join('');
+      var el = document.head.querySelector(sel);
+      if (!el) {
+        el = document.createElement(tag);
+        Object.keys(attrs).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+        document.head.appendChild(el);
+      }
+      return el;
+    }
     function updateManifest() {
+      if (!named) return;
       var manifest = {
         name: appName, short_name: appName, lang: 'da', start_url: base, scope: base, display: 'standalone',
         background_color: '#f6f6f3', theme_color: '#0b8043',
@@ -135,12 +149,10 @@
           return { src: location.origin + iconFile(n), sizes: n + 'x' + n, type: 'image/png', purpose: 'any maskable' };
         })
       };
-      document.querySelector('link[rel="manifest"]').href =
-        'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifest));
+      headTag('link', { rel: 'manifest' }).href = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifest));
     }
     try { applyIcon(localStorage.getItem(ICON_KEY), false); } catch (e) {}
     try { applyName(localStorage.getItem(NAME_KEY), false); } catch (e) {}
-    updateManifest(); // this place's own start address (/demo/ for the demo), even before a name is saved
     // Ask the app for its name and icon right away (much quicker than the app itself), so even a
     // first visit shows them. The icon only if none is saved: that may be the person's own choice.
     var hadIcon = false;
